@@ -8,7 +8,10 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:market": "node --loader ts-node/esm src/server/__tests__/examples.ts",
+    "test:market:unit": "node --loader ts-node/esm src/server/__tests__/binance.test.ts",
+    "test:market:integration": "node --loader ts-node/esm src/server/__tests__/integration.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
