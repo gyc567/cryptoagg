@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/CustomBadge";
 import { TrendingUp, TrendingDown, AlertTriangle, Zap } from "lucide-react";
 import { useMarketDataMonitor } from "@/hooks/useMarketDataMonitor";
 import { DetectionType } from "@/server/types";
+import { useNavigate } from "react-router-dom";
 
 /**
  * 获取风险等级的颜色
@@ -54,6 +55,7 @@ function formatNumber(num: number, decimals: number = 2): string {
 }
 
 export function MarketOrderFeed() {
+  const navigate = useNavigate();
   const { alerts, isLoading, alertCount } = useMarketDataMonitor({
     symbols: ["BTC/USDT", "ETH/USDT", "SOL/USDT"],
     maxAlerts: 20,
@@ -78,7 +80,8 @@ export function MarketOrderFeed() {
           alerts.map((alert, index) => (
             <div
               key={alert.id}
-              className={`flex items-center justify-between p-3 rounded border animate-slide-in transition-colors ${getSeverityBgColor(
+              onClick={() => navigate(`/alert/${alert.id}`, { state: { alert } })}
+              className={`flex items-center justify-between p-3 rounded border animate-slide-in transition-colors cursor-pointer hover:bg-muted/50 ${getSeverityBgColor(
                 alert.severity
               )} border-l-4 ${alert.severity >= 8 ? "border-l-destructive" : "border-l-yellow-500"}`}
               style={{ animationDelay: `${index * 30}ms` }}
