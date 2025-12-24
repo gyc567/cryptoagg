@@ -1,16 +1,39 @@
 import { TrendingUp, TrendingDown, Activity, Zap } from "lucide-react";
-
-const stats = [
-  { label: "BTC", value: "$98,432", change: "+2.34%", positive: true },
-  { label: "ETH", value: "$3,456", change: "+1.89%", positive: true },
-  { label: "ETH/BTC", value: "0.0351", change: "-0.45%", positive: false },
-  { label: "BTC.D", value: "54.2%", change: "+0.12%", positive: true },
-  { label: "总市值", value: "$3.42T", change: "+1.56%", positive: true },
-  { label: "24h成交", value: "$142B", change: "+18.3%", positive: true },
-  { label: "恐慌指数", value: "75", change: "贪婪", positive: true },
-];
+import { useBinanceTicker } from "@/hooks/useBinanceTicker";
 
 export function StatsBar() {
+  const { tickers, status } = useBinanceTicker(['BTC/USDT', 'ETH/USDT']);
+
+  // 基础静态数据 (用于那些没有API的指标)
+  const otherStats = [
+    { label: "ETH/BTC", value: "0.0351", change: "-0.45%", positive: false },
+    { label: "BTC.D", value: "54.2%", change: "+0.12%", positive: true },
+    { label: "总市值", value: "$3.42T", change: "+1.56%", positive: true },
+    { label: "24h成交", value: "$142B", change: "+18.3%", positive: true },
+    { label: "恐慌指数", value: "75", change: "贪婪", positive: true },
+  ];
+
+  // 格式化实时数据
+  const formatTicker = (symbol: string, label: string) => {
+    const data = tickers[symbol];
+    if (!data) return { label, value: "Loading...", change: "---", positive: true };
+
+    const isPositive = data.changePercent >= 0;
+    return {
+      label,
+      value: data.price.toLocaleString('en-US', { style: 'currency', currency: 'USD' }),
+      change: `${isPositive ? '+' : ''}${data.changePercent.toFixed(2)}%`,
+      positive: isPositive
+    };
+  };
+
+  const realStats = [
+    formatTicker('BTC/USDT', 'BTC'),
+    formatTicker('ETH/USDT', 'ETH')
+  ];
+
+  const allStats = [...realStats, ...otherStats];
+
   return (
     <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm overflow-x-auto scrollbar-thin">
       <div className="container px-4">
@@ -20,7 +43,7 @@ export function StatsBar() {
             <span className="text-xs font-medium uppercase tracking-wider">实时行情</span>
           </div>
           
-          {stats.map((stat, index) => (
+          {allStats.map((stat, index) => (
             <div key={index} className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground">{stat.label}</span>
@@ -34,15 +57,18 @@ export function StatsBar() {
                   <span className="font-mono text-xs">{stat.change}</span>
                 </div>
               </div>
-              {index < stats.length - 1 && (
+              {index < allStats.length - 1 && (
                 <div className="w-px h-4 bg-border/50"></div>
               )}
             </div>
           ))}
           
           <div className="flex items-center gap-2 ml-auto">
-            <Zap className="w-3 h-3 text-warning animate-pulse" />
-            <span className="text-xs text-muted-foreground">延迟: <span className="text-success font-mono">12ms</span></span>
+            <Zap className={`w-3 h-3 ${status === 'CONNECTED' ? 'text-success animate-pulse' : 'text-warning'}`} />
+            <span className="text-xs text-muted-foreground">
+              {status === 'CONNECTED' ? 'Live' : status} 
+              {status === 'CONNECTED' && <span className="text-success font-mono ml-1">12ms</span>}
+            </span>
           </div>
         </div>
       </div>
