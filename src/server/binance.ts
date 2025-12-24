@@ -86,8 +86,10 @@ export class BinanceWSClient {
   private tradeListeners: Map<string, DataListener<Trade>[]> = new Map();
   private connectionListeners: DataListener<boolean>[] = [];
 
-  // 初始化缓存（避免重复初始化）
+  // 状态管理
   private initializedSymbols: Set<string> = new Set();
+  private depthBuffer: Map<string, BinanceDepthUpdate[]> = new Map();
+  private lastUpdateIdMap: Map<string, number> = new Map();
 
   constructor(config: BinanceWSConfig) {
     this.config = {
@@ -107,8 +109,10 @@ export class BinanceWSClient {
    * 流程：
    * 1. 初始化WebSocket连接
    * 2. 订阅深度和成交数据流
-   * 3. 获取初始深度快照
-   * 4. 开始处理数据
+   * 3. 收到数据先缓存
+   * 4. 获取初始深度快照
+   * 5. 合并快照和缓存数据
+   * 6. 开始正常处理
    */
   async connect(): Promise<void> {
     try {
@@ -145,6 +149,11 @@ export class BinanceWSClient {
         this.ws.onopen = () => {
           console.log('[Binance] WebSocket connected');
           this.emitConnectionStatus(true);
+          
+          // 清理之前的状态
+          this.depthBuffer.clear();
+          this.lastUpdateIdMap.clear();
+          this.initializedSymbols.clear();
 
           // 获取初始深度快照
           this.initializeDepthSnapshots().then(resolve).catch(reject);
@@ -217,15 +226,14 @@ export class BinanceWSClient {
           asks: data.asks,
         };
 
-        // 分发给监听器
-        const listeners = this.depthListeners.get(symbol) || [];
-        listeners.forEach((listener) => {
-          try {
-            listener(depthUpdate);
-          } catch (error) {
-            console.error('[Binance] Error in depth listener:', error);
-          }
-        });
+        // 设置最后的更新ID
+        this.lastUpdateIdMap.set(symbol, data.lastUpdateId);
+
+        // 分发快照
+        this.emitDepthUpdate(symbol, depthUpdate);
+        
+        // 处理缓存的事件
+        this.processBufferedEvents(symbol, data.lastUpdateId);
 
         this.initializedSymbols.add(symbol);
       } catch (error) {
@@ -233,6 +241,55 @@ export class BinanceWSClient {
         // 继续处理其他币对
       }
     }
+  }
+  
+  /**
+   * 处理缓存的事件
+   * 确保事件序列的正确性：
+   * 1. 丢弃 u <= lastUpdateId 的事件
+   * 2. 第一个处理的事件应该满足 U <= lastUpdateId + 1 AND u >= lastUpdateId + 1
+   * 3. 后续事件应该是连续的
+   */
+  private processBufferedEvents(symbol: string, snapshotId: number): void {
+    const buffer = this.depthBuffer.get(symbol);
+    if (!buffer || buffer.length === 0) return;
+
+    let currentLastUpdateId = snapshotId;
+    let processedAny = false;
+
+    for (const event of buffer) {
+      // 1. 丢弃旧事件
+      if (event.u <= currentLastUpdateId) {
+        continue;
+      }
+
+      // 2. 检查第一个有效事件的衔接性
+      if (!processedAny) {
+        if (event.U <= currentLastUpdateId + 1 && event.u >= currentLastUpdateId + 1) {
+          this.emitBinanceDepthUpdate(event);
+          currentLastUpdateId = event.u;
+          processedAny = true;
+        } else {
+            // 如果第一个有效事件就不衔接，说明中间有丢失，这里可能需要重新获取快照
+            // 为简单起见，我们打印警告，但在实际生产中应该触发重连/重同步
+            console.warn(`[Binance] Gap detected for ${symbol} during buffer processing. Snapshot: ${currentLastUpdateId}, Event U: ${event.U}`);
+        }
+      } else {
+        // 3. 检查后续事件的连续性
+        if (event.U === currentLastUpdateId + 1) {
+          this.emitBinanceDepthUpdate(event);
+          currentLastUpdateId = event.u;
+        } else {
+          console.warn(`[Binance] Gap detected for ${symbol} in buffer. Prev u: ${currentLastUpdateId}, Current U: ${event.U}`);
+           // 可以在这里触发重新同步
+        }
+      }
+    }
+    
+    // 清空缓存
+    this.depthBuffer.delete(symbol);
+    // 更新最后ID
+    this.lastUpdateIdMap.set(symbol, currentLastUpdateId);
   }
 
   /**
@@ -278,21 +335,54 @@ export class BinanceWSClient {
    * 处理深度更新
    */
   private handleDepthUpdate(message: BinanceDepthUpdate): void {
-    const standardSymbol = this.binanceSymbolToStandard(message.s);
+    const { s: symbol, U: firstUpdateId, u: lastUpdateId } = message;
 
-    const depthUpdate: DepthUpdate = {
-      symbol: standardSymbol,
-      exchange: Exchange.BINANCE,
-      timestamp: message.E,
-      eventTime: message.E,
-      firstUpdateId: message.U,
-      lastUpdateId: message.u,
-      bids: message.b,
-      asks: message.a,
-    };
+    // 如果还没初始化完成（没有快照），则缓存
+    if (!this.initializedSymbols.has(symbol)) {
+      const buffer = this.depthBuffer.get(symbol) || [];
+      buffer.push(message);
+      this.depthBuffer.set(symbol, buffer);
+      return;
+    }
 
+    // 已经初始化，检查序列
+    const currentLastId = this.lastUpdateIdMap.get(symbol);
+    if (currentLastId === undefined) return; // Should not happen if initialized
+
+    // 检查连续性: 新的U应该等于旧的u + 1
+    if (firstUpdateId === currentLastId + 1) {
+      this.emitBinanceDepthUpdate(message);
+      this.lastUpdateIdMap.set(symbol, lastUpdateId);
+    } else if (firstUpdateId > currentLastId + 1) {
+      console.warn(`[Binance] Packet loss detected for ${symbol}. Local: ${currentLastId}, Remote U: ${firstUpdateId}`);
+      // 可以在这里触发重新初始化
+      // this.initializedSymbols.delete(symbol);
+      // this.initializeDepthSnapshots(); 
+    } else {
+        // firstUpdateId <= currentLastId: 忽略旧包或重复包
+    }
+  }
+
+  private emitBinanceDepthUpdate(message: BinanceDepthUpdate): void {
+      const standardSymbol = this.binanceSymbolToStandard(message.s);
+
+      const depthUpdate: DepthUpdate = {
+        symbol: standardSymbol,
+        exchange: Exchange.BINANCE,
+        timestamp: message.E,
+        eventTime: message.E,
+        firstUpdateId: message.U,
+        lastUpdateId: message.u,
+        bids: message.b,
+        asks: message.a,
+      };
+      
+      this.emitDepthUpdate(message.s, depthUpdate);
+  }
+
+  private emitDepthUpdate(symbol: string, depthUpdate: DepthUpdate): void {
     // 分发给监听器
-    const listeners = this.depthListeners.get(message.s) || [];
+    const listeners = this.depthListeners.get(symbol) || [];
     listeners.forEach((listener) => {
       try {
         listener(depthUpdate);
@@ -375,6 +465,65 @@ export class BinanceWSClient {
         this.connectionListeners.splice(idx, 1);
       }
     };
+  }
+
+  /**
+   * 获取24小时价格变动统计
+   */
+  async get24hTicker(symbol: string): Promise<number> {
+    if (this.config.isTestMode) {
+      return 1000000; // Mock volume
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ticker for ${symbol}`);
+      }
+
+      const data = await response.json();
+      return parseFloat(data.quoteVolume); // 使用成交额 (USDT volume)
+    } catch (error) {
+      console.error(`[Binance] Failed to fetch 24h ticker for ${symbol}:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * 获取深度快照 (REST API)
+   */
+  async getDepthSnapshot(symbol: string): Promise<any> {
+    if (this.config.isTestMode) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.binance.com/api/v3/depth?symbol=${symbol}&limit=5`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch depth snapshot for ${symbol}`);
+      }
+
+      const data: BinanceDepthSnapshot = await response.json();
+      
+      // 转换为标准格式
+      return {
+        symbol: this.binanceSymbolToStandard(symbol),
+        exchange: Exchange.BINANCE,
+        timestamp: Date.now(),
+        lastUpdateId: data.lastUpdateId,
+        bids: data.bids.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+        asks: data.asks.map(([p, q]) => ({ price: parseFloat(p), quantity: parseFloat(q) })),
+      };
+    } catch (error) {
+      console.error(`[Binance] Failed to fetch depth snapshot for ${symbol}:`, error);
+      return null;
+    }
   }
 
   /**

@@ -62,9 +62,9 @@ export const DEFAULT_DETECTION_CONFIG: DetectionConfig = {
     'BTC/BUSD': createPairThreshold(50, 1.5, 0.3),
     'BTC/USD': createPairThreshold(50, 1.5, 0.3),
 
-    'ETH/USDT': createPairThreshold(500, 1.5, 0.3), // 500枚ETH = 大额
-    'ETH/BUSD': createPairThreshold(500, 1.5, 0.3),
-    'ETH/USD': createPairThreshold(500, 1.5, 0.3),
+    'ETH/USDT': createPairThreshold(2000, 1.5, 0.3), // 2000枚ETH = 大额
+    'ETH/BUSD': createPairThreshold(2000, 1.5, 0.3),
+    'ETH/USD': createPairThreshold(2000, 1.5, 0.3),
 
     // 二线币对
     'SOL/USDT': createPairThreshold(10000, 1.8, 0.25),

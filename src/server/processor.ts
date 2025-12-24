@@ -82,6 +82,41 @@ export class MarketDataProcessor {
   }
 
   /**
+   * 更新日均成交量
+   */
+  updateDailyVolume(volume: number): void {
+    this.config.dailyVolume = volume;
+  }
+
+  /**
+   * 校验本地订单簿是否与远程快照一致
+   */
+  validateAgainstSnapshot(snapshot: OrderBookSnapshot): boolean {
+    const localSnapshot = this.orderBook.getSnapshot();
+    
+    // 简单的最佳买卖价对比
+    const localBestBid = localSnapshot.bids[0]?.price || 0;
+    const remoteBestBid = snapshot.bids[0]?.price || 0;
+    const localBestAsk = localSnapshot.asks[0]?.price || 0;
+    const remoteBestAsk = snapshot.asks[0]?.price || 0;
+    
+    // 允许非常小的误差（浮点数）
+    const epsilon = 0.0000001;
+    
+    const bidMatch = Math.abs(localBestBid - remoteBestBid) < epsilon;
+    const askMatch = Math.abs(localBestAsk - remoteBestAsk) < epsilon;
+    
+    if (!bidMatch || !askMatch) {
+      console.warn(`[${this.config.symbol}] OrderBook validation failed!`);
+      console.warn(`Local: Bid=${localBestBid}, Ask=${localBestAsk}`);
+      console.warn(`Remote: Bid=${remoteBestBid}, Ask=${remoteBestAsk}`);
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
    * 处理深度更新
    *
    * 流程：
