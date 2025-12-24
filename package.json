@@ -1,5 +1,5 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "cryptoagg",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "bun test --preload ./src/test/setup.ts --max-concurrency 1",
     "test:market": "node --loader ts-node/esm src/server/__tests__/examples.ts",
     "test:market:unit": "node --loader ts-node/esm src/server/__tests__/binance.test.ts",
     "test:market:integration": "node --loader ts-node/esm src/server/__tests__/integration.test.ts"
