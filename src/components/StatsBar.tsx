@@ -1,19 +1,13 @@
 import { TrendingUp, TrendingDown, Activity, Zap } from "lucide-react";
 import { useBinanceTicker } from "@/hooks/useBinanceTicker";
+import { useGlobalStats } from "@/hooks/useGlobalStats";
 import { FearGreedLabel } from "@/components/FearGreedLabel";
 
 export function StatsBar() {
   const { tickers, status } = useBinanceTicker(['BTC/USDT', 'ETH/USDT']);
+  const { stats: globalStats, status: globalStatus } = useGlobalStats();
 
-  // 基础静态数据 (用于那些没有API的指标)
-  const otherStats = [
-    { label: "ETH/BTC", value: "0.0351", change: "-0.45%", positive: false },
-    { label: "BTC.D", value: "54.2%", change: "+0.12%", positive: true },
-    { label: "总市值", value: "$3.42T", change: "+1.56%", positive: true },
-    { label: "24h成交", value: "$142B", change: "+18.3%", positive: true },
-  ];
-
-  // 格式化实时数据
+  // 格式化实时数据 (BTC/ETH USDT)
   const formatTicker = (symbol: string, label: string) => {
     const data = tickers[symbol];
     if (!data) return { label, value: "Loading...", change: "---", positive: true };
@@ -32,7 +26,11 @@ export function StatsBar() {
     formatTicker('ETH/USDT', 'ETH')
   ];
 
-  const allStats = [...realStats, ...otherStats];
+  const allStats = [...realStats, ...globalStats];
+  
+  // Combine status
+  const effectiveStatus = (status === 'CONNECTED' && globalStatus === 'CONNECTED') ? 'CONNECTED' : 
+                          (status === 'DISCONNECTED' || globalStatus === 'DISCONNECTED') ? 'DISCONNECTED' : status;
 
   return (
     <div className="border-b border-border/30 bg-card/50 backdrop-blur-sm overflow-x-auto scrollbar-thin">
@@ -70,10 +68,10 @@ export function StatsBar() {
           </div>
           
           <div className="flex items-center gap-2 ml-auto">
-            <Zap className={`w-3 h-3 ${status === 'CONNECTED' ? 'text-success animate-pulse' : 'text-warning'}`} />
+            <Zap className={`w-3 h-3 ${effectiveStatus === 'CONNECTED' ? 'text-success animate-pulse' : 'text-warning'}`} />
             <span className="text-xs text-muted-foreground">
-              {status === 'CONNECTED' ? 'Live' : status} 
-              {status === 'CONNECTED' && <span className="text-success font-mono ml-1">12ms</span>}
+              {effectiveStatus === 'CONNECTED' ? 'Live' : effectiveStatus} 
+              {effectiveStatus === 'CONNECTED' && <span className="text-success font-mono ml-1">12ms</span>}
             </span>
           </div>
         </div>

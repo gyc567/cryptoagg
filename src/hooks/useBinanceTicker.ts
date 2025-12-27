@@ -4,7 +4,8 @@ export interface TickerData {
   symbol: string;
   price: number;
   changePercent: number; // 24h change percent
-  volume?: string; // 24h volume
+  volume: string; // Formatted 24h volume
+  quoteVolume: number; // Raw 24h quote volume
 }
 
 interface BinanceTradePayload {
@@ -74,7 +75,8 @@ export function useBinanceTicker(symbols: string[]) {
             symbol,
             price,
             changePercent,
-            volume: formatVolume(parseFloat(data.quoteVolume))
+            volume: formatVolume(parseFloat(data.quoteVolume)),
+            quoteVolume: parseFloat(data.quoteVolume)
           };
         });
         
