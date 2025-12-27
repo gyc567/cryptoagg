@@ -108,6 +108,22 @@ export interface MarketTakerAlert {
 }
 
 // ============================================================================
+// 大额转账/交易监控类型
+// ============================================================================
+
+export interface LargeTransfer {
+  txId: string;
+  amount: number;
+  currency: string;
+  fromAddress: string;
+  toAddress: string;
+  timestamp: number;
+  exchange: string;
+  value: string; // Formatted value e.g. "$1.2M"
+  direction: 'in' | 'out'; // 'in' = Buy (Inflow to base asset), 'out' = Sell (Outflow from base asset)
+}
+
+// ============================================================================
 // 配置相关类型
 // ============================================================================
 
