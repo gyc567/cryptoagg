@@ -204,6 +204,7 @@ export class MarketDataProcessor {
     }
 
     this.stats.totalTrades++;
+    this.stats.lastUpdateTime = Date.now();
 
     // 触发事件监听器
     this.tradeListeners.forEach((listener) => listener(trade));
