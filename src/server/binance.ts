@@ -117,8 +117,9 @@ export class BinanceWSClient {
   async connect(): Promise<void> {
     try {
       if (this.config.isTestMode) {
-        console.log('[Binance] Test mode enabled, using mock data');
+        console.log('[Binance] Test mode enabled, starting mock data stream');
         this.emitConnectionStatus(true);
+        this.startMockDataStream();
         return;
       }
 
@@ -128,6 +129,45 @@ export class BinanceWSClient {
       console.error('[Binance] Connection failed:', error);
       this.reconnect();
     }
+  }
+
+  private startMockDataStream(): void {
+    setInterval(() => {
+      this.config.symbols.forEach(symbol => {
+        // Mock AggTrade
+        const isLarge = Math.random() > 0.95;
+        const trade: BinanceAggTrade = {
+          e: 'aggTrade',
+          E: Date.now(),
+          s: symbol,
+          a: Math.floor(Math.random() * 1000000),
+          p: '95000',
+          q: isLarge ? '20' : '0.1',
+          f: 1,
+          l: 2,
+          T: Date.now(),
+          m: Math.random() > 0.5
+        };
+        this.handleAggTrade(trade);
+
+        // Mock DepthUpdate
+        if (Math.random() > 0.8) {
+          const currentId = this.lastUpdateIdMap.get(symbol) || 0;
+          const depth: BinanceDepthUpdate = {
+            e: 'depthUpdate',
+            E: Date.now(),
+            s: symbol,
+            U: currentId + 1,
+            u: currentId + 2,
+            b: [['94900', '10'], ['94800', '20']],
+            a: [['95100', '10'], ['95200', '20']]
+          };
+          this.initializedSymbols.add(symbol);
+          this.lastUpdateIdMap.set(symbol, depth.u);
+          this.handleDepthUpdate(depth);
+        }
+      });
+    }, 1000);
   }
 
   /**
