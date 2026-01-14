@@ -177,3 +177,71 @@ export type MarketEvent =
 export interface Observable<T> {
   subscribe(observer: (value: T) => void): () => void;
 }
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+// ============================================================================
+// 交易信号分析类型 (AI K线分析功能)
+// ============================================================================
+
+export type TradingSignalDirection = 'LONG' | 'SHORT' | 'NEUTRAL';
+
+export interface TradingSignalAnalysis {
+  indicators: string[]; // ['RSI', 'MACD', 'Bollinger Bands']
+  pattern: string; // 'Bullish Divergence', 'Head and Shoulders', etc.
+  summary: string; // AI 分析理由
+}
+
+export interface TradingSignal {
+  id: string;
+  timestamp: number;
+  
+  // 方向
+  direction: TradingSignalDirection;
+  confidence: number; // 0-100%
+  
+  // 入场/出场
+  entryPrice: number;
+  takeProfit: number;
+  stopLoss: number;
+  
+  // 风险管理
+  positionSize: number; // USDT 金额
+  leverage: number; // 杠杆倍数
+  riskRewardRatio: number; // 盈亏比
+  
+  // 技术分析摘要
+  analysis: TradingSignalAnalysis;
+  
+  // 元数据
+  sourceImageUrl: string;
+  symbol?: string;
+  modelVersion: string;
+  processingTime: number; // ms
+}
+
+export interface AnalysisFeedback {
+  signalId: string;
+  helpful: boolean;
+  comment?: string;
+  timestamp: number;
+}
+
+export interface AnalysisHistory {
+  signals: TradingSignal[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface AnalysisState {
+  status: 'idle' | 'uploading' | 'analyzing' | 'completed' | 'error';
+  progress?: number;
+  message?: string;
+  signal?: TradingSignal;
+  error?: string;
+}
