@@ -107,3 +107,11 @@ if (isLoading) {
 - Implement skeleton loading states
 - Follow existing color and spacing patterns
 - Use `animate-slide-in` for entrance animations
+
+**Test Patterns**:
+```typescript
+// Tests use Bun Test + Testing Library
+import { describe, it, expect } from "bun:test";
+import { render, screen } from "@testing-library/react";
+import NewsFeed from "../NewsFeed";
+```

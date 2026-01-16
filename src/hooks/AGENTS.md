@@ -14,7 +14,8 @@ hooks/
 ├── useGlobalStats.ts        # Global market stats (139 lines)
 ├── useFearGreedIndex.ts   # Fear & Greed index (simple fetch)
 ├── use-mobile.tsx          # Mobile viewport detection
-└── use-toast.ts           # Toast notifications
+├── use-toast.ts           # Toast notifications
+└── __tests__/            # 6 test files
 ```
 
 ## WHERE TO LOOK
@@ -87,6 +88,12 @@ reconnectAttempts++;
 setTimeout(connect, delay);  // 1s, 2s, 4s, 8s, 16s, 30s max
 ```
 
+**Deduplication**:
+```typescript
+// Use Map for O(1) deduplication
+const dedupMap = new Map(transfer.id);
+```
+
 ## ANTI-PATTERNS (THIS MODULE)
 
 **❌ DON'T**:
@@ -101,3 +108,12 @@ setTimeout(connect, delay);  // 1s, 2s, 4s, 8s, 16s, 30s max
 - Implement exponential backoff for reconnection
 - Batch updates to reduce React re-renders
 - Deduplicate data using Map before setting state
+
+**Test Patterns**:
+```typescript
+// Tests use Bun Test + Happy-DOM + Testing Library
+import { describe, it, expect } from "bun:test";
+import { renderHook, waitFor } from "@testing-library/react";
+
+// Run via: bun test --preload ./src/test/setup.ts
+```
